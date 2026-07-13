@@ -1,0 +1,145 @@
+package ar.edu.ubp.das.la_fabrica_burger_backend.repositories;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.stereotype.Repository;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import ar.edu.ubp.das.la_fabrica_burger_backend.beans.ActualizarContenidosNoPublicadosRequestBean;
+import ar.edu.ubp.das.la_fabrica_burger_backend.beans.ClienteResponseBean;
+import ar.edu.ubp.das.la_fabrica_burger_backend.beans.RegistarClicksContenidosRestaurantesRequestBean;
+import ar.edu.ubp.das.la_fabrica_burger_backend.beans.ContenidoNoPublicadoResponseBean;
+import ar.edu.ubp.das.la_fabrica_burger_backend.beans.ObtenerDisponibilidadHorariaZonaResponseBean;
+import ar.edu.ubp.das.la_fabrica_burger_backend.components.SimpleJdbcCallFactory;
+
+@Repository
+public class LaFabricaBurgerRepository {
+
+  @Autowired
+  private SimpleJdbcCallFactory jdbcCallFactory;
+
+  // ===============================
+  // REGISTRAR CLICK CONTENIDO
+  // ===============================
+  public void registrarClickContenido(RegistarClicksContenidosRestaurantesRequestBean body) {
+    MapSqlParameterSource p = new MapSqlParameterSource()
+        .addValue("cod_contenido_restaurante", body.getCodContenidoRestaurante())
+        .addValue("nro_contenido", body.getNroContenido())
+        .addValue("nro_click", body.getNroClick())
+        .addValue("fecha_hora_registro", body.getFechaHoraRegistro())
+        .addValue("nro_cliente", body.getNroCliente())
+        .addValue("costo_click", body.getCostoClick());
+
+    jdbcCallFactory.executeWithOutputs("sp_insert_click_contenido", "dbo", p);
+  }
+
+  // ===============================
+  // OBTENER CONTENIDOS NO PUBLICADOS
+  // ===============================
+  public List<ContenidoNoPublicadoResponseBean> getContenidosNoPublicados() {
+    MapSqlParameterSource p = new MapSqlParameterSource();
+
+    return jdbcCallFactory.executeQuery(
+        "sp_get_contenidos_no_publicados",
+        "dbo",
+        p,
+        "contenidos_no_publicados",
+        ContenidoNoPublicadoResponseBean.class);
+  }
+
+  // ===============================
+  // INSERT CLIENTE DESDE RISTORINO
+  // ===============================
+  public Integer insertarClienteDesdeRistorino(
+      String apellido,
+      String nombre,
+      String correo,
+      String telefonos) {
+
+    MapSqlParameterSource p = new MapSqlParameterSource()
+        .addValue("apellido", apellido)
+        .addValue("nombre", nombre)
+        .addValue("correo", correo)
+        .addValue("telefonos", telefonos);
+
+    List<ClienteResponseBean> result = jdbcCallFactory.executeQuery(
+        "sp_insert_cliente_desde_ristorino",
+        "dbo",
+        p,
+        "cliente",
+        ClienteResponseBean.class);
+
+    return result.get(0).getNroCliente();
+  }
+
+  // ===============================
+  // INSERT RESERVA DESDE RISTORINO
+  // ===============================
+  public void crearReservaSucursal(
+      String codReserva,
+      Integer nroCliente,
+      LocalDate fechaReserva,
+      Integer nroSucursal,
+      String codZona,
+      LocalTime horaReserva,
+      Integer cantAdultos,
+      Integer cantMenores,
+      Double costoReserva) {
+
+    MapSqlParameterSource p = new MapSqlParameterSource()
+        .addValue("cod_reserva", codReserva)
+        .addValue("nro_cliente", nroCliente)
+        .addValue("fecha_reserva", fechaReserva)
+        .addValue("nro_sucursal", nroSucursal)
+        .addValue("cod_zona", codZona)
+        .addValue("hora_reserva", horaReserva)
+        .addValue("cant_adultos", cantAdultos)
+        .addValue("cant_menores", cantMenores)
+        .addValue("costo_reserva", costoReserva);
+
+    jdbcCallFactory.executeWithOutputs(
+        "sp_crear_reserva_sucursal",
+        "dbo",
+        p);
+  }
+
+  // ACTUALIZAR LOS CONTENIDOS NO PUBLICADOS A PUBLICADOS
+  public void actualizarContenidoNoPublicadosAPublicados(ActualizarContenidosNoPublicadosRequestBean request)
+      throws JsonProcessingException {
+    ObjectMapper om = new ObjectMapper();
+    String json = om.writeValueAsString(request.getContenidos());
+
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("json", json);
+
+    jdbcCallFactory.executeWithOutputs(
+        "sp_actualizar_contenido_no_publicado",
+        "dbo",
+        params);
+  }
+
+  public List<ObtenerDisponibilidadHorariaZonaResponseBean> obtenerDisponibilidadHorariaZona(
+      Integer nroSucursal,
+      String codZona,
+      LocalDate fechaAReservar) {
+
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("nro_sucursal", nroSucursal)
+        .addValue("fecha_reserva", fechaAReservar)
+        .addValue("cod_zona", codZona);
+
+    return jdbcCallFactory.executeQuery(
+        "sp_obtener_disponibilidad_por_zona",
+        "dbo",
+        params,
+        "disponibilidad_horarios",
+        ObtenerDisponibilidadHorariaZonaResponseBean.class);
+  }
+
+}
